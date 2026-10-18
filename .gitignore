@@ -1,0 +1,12 @@
+.venv/
+build/
+dist/
+__pycache__/
+*.spec
+config.json
+stats.json
+build_out.txt
+build_log.txt
+webui_log.txt
+test_out.txt
+exe_run.txt
