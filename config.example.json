@@ -1,0 +1,53 @@
+{
+  "platforms": {
+    "deepseek": {
+      "enabled": true,
+      "keys": ["sk-在这里填入你的DeepSeek密钥"],
+      "base_url": "https://api.deepseek.com"
+    },
+    "tavily": {
+      "enabled": true,
+      "keys": ["tvly-在这里填入你的Tavily密钥"],
+      "base_url": "https://api.tavily.com"
+    }
+  },
+  "key_strategy": "round_robin",
+  "load_balance": {
+    "strategy": "failover",
+    "order": ["tavily", "deepseek"]
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "auto_start": true
+  },
+  "proxy": {
+    "mode": "auto",
+    "address": "http://127.0.0.1:7890",
+    "rules": [
+      "DOMAIN-SUFFIX,google.com,PROXY",
+      "DOMAIN-SUFFIX,googleapis.com,PROXY",
+      "DOMAIN-SUFFIX,openai.com,PROXY",
+      "DOMAIN-SUFFIX,anthropic.com,PROXY",
+      "DOMAIN-SUFFIX,githubusercontent.com,PROXY",
+      "DOMAIN-SUFFIX,deepseek.com,DIRECT",
+      "DOMAIN-SUFFIX,tavily.com,DIRECT",
+      "DOMAIN-SUFFIX,cn,DIRECT",
+      "DOMAIN-SUFFIX,baidu.com,DIRECT",
+      "DOMAIN-SUFFIX,aliyun.com,DIRECT",
+      "DOMAIN,localhost,DIRECT",
+      "DOMAIN,127.0.0.1,DIRECT"
+    ],
+    "auto_default": "direct"
+  },
+  "request": {
+    "timeout": 30.0,
+    "max_retries": 2
+  },
+  "defaults": {
+    "search_count": 10,
+    "need_content": false
+  },
+  "autostart": false,
+  "log_level": "INFO"
+}
