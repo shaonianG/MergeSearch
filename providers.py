@@ -278,7 +278,7 @@ class SearchRouter:
     def __init__(self, cfg: dict, stats=None):
         self.cfg = cfg
         self.stats = stats
-        request_cfg = {**cfg.get("request", {}), "key_strategy": cfg.get("key_strategy", "round_robin")}
+        request_cfg = {**cfg.get("request", {})}
         router = ProxyRouter(cfg.get("proxy", {}))
         lb = cfg.get("load_balance", {})
         self.strategy = lb.get("strategy", "failover")
@@ -291,7 +291,9 @@ class SearchRouter:
                 continue
             cls = PROVIDERS.get(name)
             if cls:
-                self._providers.append(cls(plat, request_cfg, router))
+                # 平台内 key 策略：每平台可独立配置
+                plat_request = {**request_cfg, "key_strategy": plat.get("key_strategy", "round_robin")}
+                self._providers.append(cls(plat, plat_request, router))
         self._rr = itertools.count()
         self._lock = threading.Lock()
 

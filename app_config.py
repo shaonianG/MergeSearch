@@ -5,21 +5,27 @@ import os
 import sys
 import threading
 
+APP_VERSION = "0.2.0"
+GITHUB_REPO = "shaonianG/MergeSearch"
+
+KEY_STRATEGIES = ("round_robin", "random", "failover")
+
 DEFAULT_CONFIG = {
-    # 平台化密钥管理：每个平台可启停、可配多个 key
+    # 平台化密钥管理：每个平台可启停、可配多个 key、可选各自的 key 策略
     "platforms": {
         "deepseek": {
             "enabled": True,
             "keys": [],
             "base_url": "https://api.deepseek.com",
+            "key_strategy": "round_robin",  # 平台内多 key 选择: round_robin | random | failover
         },
         "tavily": {
             "enabled": False,
             "keys": [],
             "base_url": "https://api.tavily.com",
+            "key_strategy": "round_robin",
         },
     },
-    "key_strategy": "round_robin",  # 平台内多 key 选择: round_robin | random | failover
     # search 跨平台负载均衡
     "load_balance": {
         "strategy": "failover",  # failover(主备) | round_robin(轮询) | random(随机)
@@ -97,7 +103,7 @@ def _legacy_rule_to_clash(rule: str, action: str) -> str:
 
 
 def migrate_config(data: dict) -> dict:
-    """旧版配置 -> 新版。旧版特征: 顶层 api_keys / proxy.proxy_rules。"""
+    """旧版配置 -> 新版。旧版特征: 顶层 api_keys / proxy.proxy_rules / 顶层 key_strategy。"""
     data = copy.deepcopy(data or {})
 
     if "api_keys" in data:
@@ -109,6 +115,13 @@ def migrate_config(data: dict) -> dict:
         if keys and not ds.get("keys"):
             ds["keys"] = keys
         ds.setdefault("base_url", base_url)
+
+    # 顶层全局 key_strategy -> 下放到每个平台（未单独设置的平台继承旧值）
+    legacy_strategy = data.pop("key_strategy", None)
+    if legacy_strategy:
+        for plat in (data.get("platforms") or {}).values():
+            if isinstance(plat, dict):
+                plat.setdefault("key_strategy", legacy_strategy)
 
     proxy = data.get("proxy")
     if isinstance(proxy, dict) and ("proxy_rules" in proxy or "direct_rules" in proxy):

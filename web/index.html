@@ -92,7 +92,14 @@ tr:last-child td { border-bottom: none; }
 .endpoint-row code { flex: 1; font-family: Consolas, monospace; font-size: 14px; color: var(--primary); }
 
 /* 提示词 */
-.prompt-box { background: #f9fafb; border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; font-size: 13px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; }
+.prompt-box { background: #f9fafb; border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; font-size: 13px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; position: relative; }
+.prompt-box.collapsed { max-height: 76px; overflow: hidden; }
+.prompt-box.collapsed::after { content: "点击展开完整提示词 ▾"; position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background: linear-gradient(transparent, #f9fafb 70%); display: flex; align-items: flex-end; justify-content: center; color: var(--primary); font-size: 12px; padding-bottom: 4px; cursor: pointer; }
+.prompt-box.expanded::after { content: "收起 ▴"; display: block; text-align: center; color: var(--primary); font-size: 12px; margin-top: 8px; cursor: pointer; }
+
+/* 更新对话框 */
+.update-box { border: 1px solid var(--border); border-radius: 6px; padding: 14px; background: #f9fafb; margin-top: 12px; }
+.update-box .notes { max-height: 180px; overflow-y: auto; white-space: pre-wrap; font-size: 12px; color: var(--text-secondary); margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 8px; }
 
 /* 提示条 */
 .toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 6px; background: #111827; color: #fff; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 99; }
@@ -134,33 +141,12 @@ tr:last-child td { border-bottom: none; }
       <div class="stat-card"><div class="lbl">服务状态</div><div class="num" id="statStatus">未运行</div></div>
       <div class="stat-card"><div class="lbl">已启用平台</div><div class="num" id="statPlatforms">0</div></div>
       <div class="stat-card"><div class="lbl">API 密钥总数</div><div class="num" id="statKeys">0</div></div>
-      <div class="stat-card"><div class="lbl">代理模式</div><div class="num" id="statProxy">-</div></div>
-    </div>
-    <div class="card">
-      <div class="card-title">MCP 接入地址
-        <span><button class="btn sm" onclick="copyText(document.getElementById('endpoint').textContent)">复制</button></span>
-      </div>
-      <div class="endpoint-row"><code id="endpoint">-</code></div>
-      <div class="hint">在 Kimi Code / Claude Code 等客户端中添加上述地址（streamable-http 协议）即可使用 search / fetch / crawl / research 工具</div>
-    </div>
-    <div class="card">
-      <div class="card-title">一键接入提示词
-        <span><button class="btn sm primary" onclick="copyPrompt()">复制提示词</button></span>
-      </div>
-      <div class="prompt-box" id="promptBox"></div>
-      <div class="hint">把这段提示词直接发给 Kimi Code / Claude Code 等 agent，它会自动完成 MCP 接入并验证</div>
-    </div>
-    <div class="card">
-      <div class="card-title">服务控制</div>
-      <div style="display:flex;gap:10px;align-items:center">
-        <button class="btn success" id="btnStart" onclick="startService()">▶ 启动服务</button>
-        <button class="btn danger" id="btnStop" onclick="stopService()">■ 停止服务</button>
-        <span id="svcMsg" style="color:var(--text-secondary);font-size:13px"></span>
-      </div>
+      <div class="stat-card"><div class="lbl">当前版本</div><div class="num" id="statVersion" style="font-size:18px">-</div></div>
     </div>
     <div class="card">
       <div class="card-title">用量统计
         <span style="display:flex;gap:8px">
+          <button class="btn sm" onclick="checkUpdate(true)">检查更新</button>
           <button class="btn sm" onclick="loadStats()">刷新</button>
           <button class="btn sm danger" onclick="resetStats()">清零</button>
         </span>
@@ -170,6 +156,37 @@ tr:last-child td { border-bottom: none; }
         <tbody id="statsTable"></tbody>
       </table>
       <div class="hint" id="statsSince"></div>
+      <div class="update-box" id="updateBox" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span id="updateInfo" style="font-weight:600"></span>
+          <span style="flex:1"></span>
+          <button class="btn sm primary" id="btnUpdateDownload" onclick="downloadUpdate()">⬇ 下载更新</button>
+          <button class="btn sm success" id="btnUpdateApply" style="display:none" onclick="applyUpdateUI()">⟳ 应用更新并重启</button>
+          <button class="btn sm" onclick="hideUpdateBox()">忽略</button>
+        </div>
+        <div class="notes" id="updateNotes"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">MCP 接入地址
+        <span><button class="btn sm" onclick="copyText(document.getElementById('endpoint').textContent)">复制</button></span>
+      </div>
+      <div class="endpoint-row"><code id="endpoint">-</code></div>
+      <div class="hint">在 Kimi Code / Claude Code 等客户端中添加上述地址（streamable-http 协议）即可使用 search / fetch / crawl / research 工具</div>
+    </div>
+    <div class="card">
+      <div class="card-title">服务控制</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn success" id="btnToggleSvc" onclick="toggleService()">▶ 启动服务</button>
+        <span id="svcMsg" style="color:var(--text-secondary);font-size:13px"></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">一键接入提示词
+        <span><button class="btn sm primary" onclick="copyPrompt()">复制提示词</button></span>
+      </div>
+      <div class="prompt-box collapsed" id="promptBox" onclick="togglePrompt()" style="cursor:pointer" title="点击展开 / 收起"></div>
+      <div class="hint" id="promptHint">提示词默认折叠显示简略内容，点击文本框可展开完整提示词</div>
     </div>
   </div>
 
@@ -191,23 +208,17 @@ tr:last-child td { border-bottom: none; }
     <div class="card">
       <div class="card-title">搜索负载均衡（跨平台）</div>
       <div class="form-row"><span class="form-label">负载均衡策略</span>
-        <div class="seg" id="lbSeg">
-          <div class="seg-item" data-v="failover">主备（按优先级）</div>
-          <div class="seg-item" data-v="round_robin">轮询</div>
-          <div class="seg-item" data-v="random">随机</div>
-        </div>
+        <select class="input" id="lbStrategy" style="max-width:220px" onchange="onLbStrategyChange()">
+          <option value="failover">主备（按优先级）</option>
+          <option value="round_robin">轮询</option>
+          <option value="random">随机</option>
+        </select>
       </div>
+      <div class="hint" id="lbStrategyHint" style="margin:-6px 0 12px 160px"></div>
       <div class="form-row" style="align-items:flex-start"><span class="form-label">平台优先级</span>
         <div id="lbOrder" style="flex:1;max-width:420px"></div>
       </div>
-      <div class="form-row"><span class="form-label">平台内 Key 策略</span>
-        <div class="seg" id="strategySeg">
-          <div class="seg-item" data-v="round_robin">轮询</div>
-          <div class="seg-item" data-v="random">随机</div>
-          <div class="seg-item" data-v="failover">主备</div>
-        </div>
-      </div>
-      <button class="btn primary" onclick="saveCfg('keys')">保存</button>
+      <div class="hint" style="margin-left:160px">调整顺序后自动保存</div>
     </div>
 
     <div id="platformCards"></div>
@@ -219,30 +230,31 @@ tr:last-child td { border-bottom: none; }
     <div class="page-desc">按请求 URL 自动判断是否走代理，规则采用 Clash 语法</div>
     <div class="card">
       <div class="form-row"><span class="form-label">代理模式</span>
-        <div class="seg" id="proxyModeSeg">
-          <div class="seg-item" data-v="direct">直连</div>
-          <div class="seg-item" data-v="auto">自动</div>
-          <div class="seg-item" data-v="global">全局代理</div>
-        </div>
+        <select class="input" id="proxyMode" style="max-width:220px" onchange="onProxyModeChange()">
+          <option value="direct">直连</option>
+          <option value="auto">自动（按规则分流）</option>
+          <option value="global">全局代理</option>
+        </select>
       </div>
-      <div class="form-row"><span class="form-label">代理地址</span><input class="input" id="proxyAddr" style="max-width:380px" placeholder="http://127.0.0.1:7890 或 socks5://..."></div>
+      <div class="hint" id="proxyModeHint" style="margin:-6px 0 12px 160px"></div>
+      <div class="form-row"><span class="form-label">代理地址</span><input class="input" id="proxyAddr" style="max-width:380px" placeholder="http://127.0.0.1:7890 或 socks5://..." onchange="autoSaveProxy()"></div>
       <div class="form-row"><span class="form-label">未命中规则时</span>
-        <div class="seg" id="autoDefaultSeg">
-          <div class="seg-item" data-v="direct">直连</div>
-          <div class="seg-item" data-v="proxy">走代理</div>
-        </div>
+        <select class="input" id="autoDefault" style="max-width:220px" onchange="onAutoDefaultChange()">
+          <option value="direct">直连</option>
+          <option value="proxy">走代理</option>
+        </select>
       </div>
+      <div class="hint" id="autoDefaultHint" style="margin:-6px 0 12px 160px"></div>
     </div>
     <div class="card">
       <div class="card-title">分流规则（自动模式生效，按顺序匹配，先命中先生效）</div>
-      <textarea class="input" id="proxyRules" rows="12" spellcheck="false"></textarea>
+      <textarea class="input" id="proxyRules" rows="12" spellcheck="false" onchange="autoSaveProxy()"></textarea>
       <div class="hint">
         Clash 语法，每行一条：<code>类型,值,动作</code>（动作为 PROXY 或 DIRECT）<br>
         DOMAIN-SUFFIX,google.com,PROXY — 域名后缀匹配 &nbsp;|&nbsp; DOMAIN,www.example.com,DIRECT — 精确匹配<br>
         DOMAIN-KEYWORD,google,PROXY — 域名包含关键词 &nbsp;|&nbsp; IP-CIDR,10.0.0.0/8,DIRECT — IP 段<br>
         REGEX,^https?://.*\.google\.,DIRECT — 正则匹配完整 URL &nbsp;|&nbsp; # 开头为注释
       </div>
-      <div style="margin-top:12px"><button class="btn primary" onclick="saveCfg('proxy')">保存</button></div>
     </div>
   </div>
 
@@ -266,7 +278,7 @@ tr:last-child td { border-bottom: none; }
       <div class="form-row"><span class="form-label">日志级别</span>
         <select class="input" id="logLevel" style="max-width:140px"><option>DEBUG</option><option>INFO</option><option>WARNING</option><option>ERROR</option></select>
       </div>
-      <button class="btn primary" onclick="saveCfg('general')">保存</button>
+      <div class="hint">所有配置修改后自动保存，无需手动点保存</div>
     </div>
   </div>
 
@@ -313,19 +325,22 @@ function copyText(text) { navigator.clipboard.writeText(text).then(() => toast('
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
 
 /* ===== 导航 ===== */
+let curPage = 'dashboard';
 document.querySelectorAll('.nav-item').forEach(el => {
   el.onclick = () => {
     document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
     document.querySelectorAll('.page').forEach(e => e.classList.remove('active'));
     el.classList.add('active');
+    curPage = el.dataset.page;
     document.getElementById('page-' + el.dataset.page).classList.add('active');
     if (el.dataset.page === 'dashboard') loadStats();
   };
 });
 
-/* ===== 分段选择器 ===== */
+/* ===== 分段选择器（保留给未改造区域） ===== */
 function segInit(id, value) {
   const seg = document.getElementById(id);
+  if (!seg) return;
   seg.querySelectorAll('.seg-item').forEach(el => {
     el.classList.toggle('active', el.dataset.v === value);
     el.onclick = () => { seg.querySelectorAll('.seg-item').forEach(e => e.classList.remove('active')); el.classList.add('active'); };
@@ -333,13 +348,30 @@ function segInit(id, value) {
 }
 function segVal(id) { const a = document.querySelector('#' + id + ' .seg-item.active'); return a ? a.dataset.v : null; }
 
+/* ===== 策略说明文字 ===== */
+const LB_DESC = {
+  failover: '主备模式：始终优先使用第 1 顺位平台，失败后按优先级依次降级到下一平台。适合「主力 + 兜底」的用法。',
+  round_robin: '轮询模式：每次请求轮流使用各平台（第 1 次 A、第 2 次 B…），失败自动跳到下一个。适合多平台分摊用量。',
+  random: '随机模式：每次请求随机挑一个平台，失败再随机换。适合多平台均摊且不想维护顺序。',
+};
+const KEY_STRATEGY_DESC = {
+  round_robin: '轮询：多个 Key 依次轮流使用，失败自动换下一个 Key 重试。',
+  random: '随机：每次请求随机选一个 Key，失败自动换。适合多 Key 均摊用量。',
+  failover: '主备：固定用第 1 个 Key，失败后换下一个。适合「主力 Key + 备用 Key」。',
+};
+
 /* ===== 配置加载/渲染 ===== */
+let loadingCfg = false;
 async function loadConfig() {
-  cfg = await api('get_config');
-  segInit('lbSeg', (cfg.load_balance || {}).strategy || 'failover');
-  segInit('strategySeg', cfg.key_strategy);
-  segInit('proxyModeSeg', cfg.proxy.mode);
-  segInit('autoDefaultSeg', cfg.proxy.auto_default);
+  loadingCfg = true;  // 加载期间抑制 on*Change 触发的自动保存
+  try {
+    cfg = await api('get_config');
+  document.getElementById('lbStrategy').value = (cfg.load_balance || {}).strategy || 'failover';
+  onLbStrategyChange();
+  document.getElementById('proxyMode').value = cfg.proxy.mode;
+  onProxyModeChange();
+  document.getElementById('autoDefault').value = cfg.proxy.auto_default;
+  onAutoDefaultChange();
   document.getElementById('proxyAddr').value = cfg.proxy.address;
   document.getElementById('proxyRules').value = (cfg.proxy.rules || []).join('\n');
   document.getElementById('host').value = cfg.server.host;
@@ -354,6 +386,9 @@ async function loadConfig() {
   renderPlatforms();
   renderLbOrder();
   updateStats();
+  } finally {
+    loadingCfg = false;
+  }
 }
 
 function plat(id) {
@@ -387,13 +422,20 @@ function renderPlatforms() {
         </span>
       </div>
       <div class="form-row"><span class="form-label">API Base URL</span>
-        <input class="input" style="max-width:380px" value="${esc(pc.base_url || '')}" onchange="plat('${p.id}').base_url=this.value.trim()">
+        <input class="input" style="max-width:380px" value="${esc(pc.base_url || '')}" onchange="setBaseUrl('${p.id}',this.value)">
       </div>
+      <div class="form-row"><span class="form-label">平台内 Key 策略</span>
+        <select class="input" style="max-width:220px" onchange="setKeyStrategy('${p.id}',this.value)">
+          <option value="round_robin" ${pc.key_strategy === 'round_robin' ? 'selected' : ''}>轮询</option>
+          <option value="random" ${pc.key_strategy === 'random' ? 'selected' : ''}>随机</option>
+          <option value="failover" ${pc.key_strategy === 'failover' ? 'selected' : ''}>主备</option>
+        </select>
+      </div>
+      <div class="hint key-strategy-hint" style="margin:-6px 0 12px 160px">${KEY_STRATEGY_DESC[pc.key_strategy] || ''}</div>
       <table>
         <thead><tr><th style="width:40px">#</th><th>API Key</th><th style="width:170px">状态</th><th style="width:270px">操作</th></tr></thead>
         <tbody id="kt-${p.id}"></tbody>
-      </table>
-      <div style="margin-top:12px"><button class="btn primary" onclick="saveCfg('keys')">保存</button></div>`;
+      </table>`;
     wrap.appendChild(card);
     renderKeyRows(p.id);
   });
@@ -417,12 +459,19 @@ function renderKeyRows(pid) {
     tb.appendChild(tr);
   });
 }
-function togglePlatform(pid, on) { plat(pid).enabled = on; renderPlatforms(); updateStats(); }
+function togglePlatform(pid, on) { plat(pid).enabled = on; renderPlatforms(); updateStats(); scheduleAutoSave(); }
 function openSite(url) { api('open_url', url); }
-function addKey(pid) { const k = prompt(`请输入 ${pid} 的 API Key:`); if (k && k.trim()) { plat(pid).keys.push(k.trim()); renderKeyRows(pid); updateStats(); } }
-function editKey(pid, i) { const k = prompt('编辑 API Key:', plat(pid).keys[i]); if (k && k.trim()) { plat(pid).keys[i] = k.trim(); renderKeyRows(pid); } }
-function delKey(pid, i) { if (confirm('确定删除该密钥?')) { plat(pid).keys.splice(i, 1); renderKeyRows(pid); updateStats(); } }
-function moveKey(pid, i, d) { const ks = plat(pid).keys, j = i + d; if (j < 0 || j >= ks.length) return; [ks[i], ks[j]] = [ks[j], ks[i]]; renderKeyRows(pid); }
+function addKey(pid) { const k = prompt(`请输入 ${pid} 的 API Key:`); if (k && k.trim()) { plat(pid).keys.push(k.trim()); renderKeyRows(pid); updateStats(); scheduleAutoSave(); } }
+function editKey(pid, i) { const k = prompt('编辑 API Key:', plat(pid).keys[i]); if (k && k.trim()) { plat(pid).keys[i] = k.trim(); renderKeyRows(pid); scheduleAutoSave(); } }
+function delKey(pid, i) { if (confirm('确定删除该密钥?')) { plat(pid).keys.splice(i, 1); renderKeyRows(pid); updateStats(); scheduleAutoSave(); } }
+function moveKey(pid, i, d) { const ks = plat(pid).keys, j = i + d; if (j < 0 || j >= ks.length) return; [ks[i], ks[j]] = [ks[j], ks[i]]; renderKeyRows(pid); scheduleAutoSave(); }
+function setBaseUrl(pid, v) { plat(pid).base_url = v.trim(); scheduleAutoSave(); }
+function setKeyStrategy(pid, v) {
+  plat(pid).key_strategy = v;
+  const hint = document.querySelector('.key-strategy-hint');
+  if (hint) hint.textContent = KEY_STRATEGY_DESC[v] || '';
+  scheduleAutoSave();
+}
 async function testKey(pid, i) {
   const k = plat(pid).keys[i];
   keyStatus[pid][k] = undefined; renderKeyRows(pid);
@@ -464,34 +513,65 @@ function moveOrder(i, d) {
   if (j < 0 || j >= order.length) return;
   [order[i], order[j]] = [order[j], order[i]];
   renderLbOrder();
+  scheduleAutoSave();
 }
 
-/* ===== 保存 ===== */
-async function saveCfg(part) {
-  if (part === 'keys') {
-    cfg.key_strategy = segVal('strategySeg');
-    cfg.load_balance.strategy = segVal('lbSeg');
-  }
-  if (part === 'proxy') {
-    cfg.proxy = { mode: segVal('proxyModeSeg'), address: document.getElementById('proxyAddr').value.trim(),
-      auto_default: segVal('autoDefaultSeg'),
-      rules: document.getElementById('proxyRules').value.split('\n').map(s => s.trim()).filter(Boolean) };
-  }
-  if (part === 'general') {
-    cfg.server.host = document.getElementById('host').value.trim() || '127.0.0.1';
-    cfg.server.port = parseInt(document.getElementById('port').value) || 8765;
-    cfg.server.auto_start = document.getElementById('autoStart').checked;
-    cfg.autostart = document.getElementById('autostart').checked;
-    cfg.request.timeout = parseFloat(document.getElementById('timeout').value) || 30;
-    cfg.request.max_retries = parseInt(document.getElementById('retries').value) || 0;
-    cfg.defaults.search_count = Math.max(1, Math.min(50, parseInt(document.getElementById('searchCount').value) || 10));
-    cfg.defaults.need_content = document.getElementById('needContent').checked;
-    cfg.log_level = document.getElementById('logLevel').value;
-  }
+/* ===== 自动保存 ===== */
+let saveTimer = null;
+async function autoSave() {
+  // 收集当前 UI 状态到 cfg
+  cfg.load_balance = cfg.load_balance || { strategy: 'failover', order: [] };
+  cfg.load_balance.strategy = document.getElementById('lbStrategy').value;
+  cfg.proxy.mode = document.getElementById('proxyMode').value;
+  cfg.proxy.address = document.getElementById('proxyAddr').value.trim();
+  cfg.proxy.auto_default = document.getElementById('autoDefault').value;
+  cfg.proxy.rules = document.getElementById('proxyRules').value.split('\n').map(s => s.trim()).filter(Boolean);
+  cfg.server.host = document.getElementById('host').value.trim() || '127.0.0.1';
+  cfg.server.port = parseInt(document.getElementById('port').value) || 8765;
+  cfg.server.auto_start = document.getElementById('autoStart').checked;
+  cfg.autostart = document.getElementById('autostart').checked;
+  cfg.request.timeout = parseFloat(document.getElementById('timeout').value) || 30;
+  cfg.request.max_retries = parseInt(document.getElementById('retries').value) || 0;
+  cfg.defaults.search_count = Math.max(1, Math.min(50, parseInt(document.getElementById('searchCount').value) || 10));
+  cfg.defaults.need_content = document.getElementById('needContent').checked;
+  cfg.log_level = document.getElementById('logLevel').value;
   const r = await api('save_config', cfg);
-  toast(r.msg);
-  if (r.ok) { await refreshStatus(); updateStats(); renderPlatforms(); }
+  toast(r.ok ? '已自动保存' : r.msg);
+  if (r.ok) { await refreshStatus(); updateStats(); }
 }
+function scheduleAutoSave() {
+  if (loadingCfg) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(autoSave, 300);  // 防抖：停止输入 300ms 后保存
+}
+function onLbStrategyChange() {
+  document.getElementById('lbStrategyHint').textContent = LB_DESC[document.getElementById('lbStrategy').value] || '';
+  scheduleAutoSave();
+}
+function onProxyModeChange() {
+  const v = document.getElementById('proxyMode').value;
+  document.getElementById('proxyModeHint').textContent = {
+    direct: '所有请求直连，不使用任何代理。',
+    auto: '按下方分流规则判断：命中 PROXY 规则走代理，命中 DIRECT 直连，未命中按「未命中规则时」的设置。',
+    global: '所有请求一律走代理地址（需填代理地址）。',
+  }[v] || '';
+  scheduleAutoSave();
+}
+function onAutoDefaultChange() {
+  const v = document.getElementById('autoDefault').value;
+  document.getElementById('autoDefaultHint').textContent = {
+    direct: '未命中任何规则时直连（默认，国内环境推荐）。',
+    proxy: '未命中任何规则时走代理（海外环境推荐）。',
+  }[v] || '';
+  scheduleAutoSave();
+}
+function autoSaveProxy() { scheduleAutoSave(); }
+
+// 常规页所有输入 change 即保存
+['host', 'port', 'autoStart', 'autostart', 'timeout', 'retries', 'searchCount', 'needContent', 'logLevel'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', scheduleAutoSave);
+});
 
 /* ===== 状态 ===== */
 async function refreshStatus() {
@@ -502,9 +582,47 @@ async function refreshStatus() {
   document.getElementById('sideStatus').textContent = s.running ? '服务运行中' : '服务未运行';
   document.getElementById('statStatus').textContent = s.running ? '运行中' : '未运行';
   document.getElementById('statStatus').style.color = s.running ? 'var(--success)' : 'var(--text)';
+  if (s.version) {
+    document.getElementById('statVersion').textContent = 'v' + s.version;
+    document.querySelector('.version-tag').textContent = 'v' + s.version;
+  }
+  renderSvcButton();
   renderPrompt(s.endpoint);
 }
 window.onServiceState = () => refreshStatus();
+
+/* ===== 服务控制（单按钮切换） ===== */
+let svcBusy = false;
+function renderSvcButton() {
+  const btn = document.getElementById('btnToggleSvc');
+  if (!btn) return;
+  if (serviceRunning) {
+    btn.textContent = '■ 停止服务';
+    btn.className = 'btn danger';
+  } else {
+    btn.textContent = '▶ 启动服务';
+    btn.className = 'btn success';
+  }
+  btn.disabled = svcBusy;
+}
+async function toggleService() {
+  if (svcBusy) return;
+  svcBusy = true;
+  renderSvcButton();
+  const msgEl = document.getElementById('svcMsg');
+  msgEl.textContent = serviceRunning ? '正在停止…' : '正在启动…';
+  try {
+    const action = serviceRunning ? 'stop_service' : 'start_service';
+    const r = await api(action);
+    toast(r.msg);
+    msgEl.textContent = r.msg;
+    await refreshStatus();
+  } finally {
+    svcBusy = false;
+    renderSvcButton();
+    setTimeout(() => { msgEl.textContent = ''; }, 3000);
+  }
+}
 
 function updateStats() {
   if (!cfg) return;
@@ -517,7 +635,14 @@ function updateStats() {
   document.getElementById('statProxy').textContent = modes[cfg.proxy.mode] || '-';
 }
 
-/* ===== 接入提示词 ===== */
+/* ===== 接入提示词（折叠/展开） ===== */
+let promptExpanded = false;
+function togglePrompt() {
+  promptExpanded = !promptExpanded;
+  const box = document.getElementById('promptBox');
+  box.classList.toggle('collapsed', !promptExpanded);
+  box.classList.toggle('expanded', promptExpanded);
+}
 function renderPrompt(endpoint) {
   document.getElementById('promptBox').textContent =
 `请帮我接入一个本地 MCP 搜索服务，要求如下：
@@ -531,6 +656,10 @@ function renderPrompt(endpoint) {
 - fetch(url): 抓取网页正文返回 Markdown，DeepSeek 失败时自动降级 Tavily extract
 - crawl(url, max_depth?, max_breadth?, limit?, instructions?): 整站递归爬取（Tavily）
 - research(query, model?, output_length?): 深度研究，生成带引用的研究报告（Tavily，耗时较长）`;
+  // 保持当前折叠状态
+  const box = document.getElementById('promptBox');
+  box.classList.toggle('collapsed', !promptExpanded);
+  box.classList.toggle('expanded', promptExpanded);
 }
 function copyPrompt() { copyText(document.getElementById('promptBox').textContent); }
 
@@ -578,8 +707,14 @@ async function resetStats() {
   toast('统计已清零');
 }
 
-async function startService() { const r = await api('start_service'); toast(r.msg); refreshStatus(); }
-async function stopService() { const r = await api('stop_service'); toast(r.msg); refreshStatus(); }
+/* 统计轮询：仪表盘可见时每 30s 刷新，避免长时间挂着不更新 */
+let statsTimer = null;
+function startStatsPolling() {
+  if (statsTimer) clearInterval(statsTimer);
+  statsTimer = setInterval(() => {
+    if (curPage === 'dashboard') loadStats();
+  }, 30000);
+}
 
 /* ===== 日志 ===== */
 const logBox = document.getElementById('logBox');
@@ -615,11 +750,91 @@ async function doFetch() {
 
 /* ===== 启动 ===== */
 window.addEventListener('pywebviewready', async () => {
-  await loadConfig();
-  await refreshStatus();
-  await loadStats();
-  pollLogs();
+  pollLogs();  // 日志轮询最先启动，且每步初始化独立容错，互不阻塞
+  try { await loadConfig(); } catch (e) { console.error('loadConfig:', e); }
+  try { await refreshStatus(); } catch (e) { console.error('refreshStatus:', e); }
+  try { await loadStats(); } catch (e) { console.error('loadStats:', e); }
+  startStatsPolling();
+  checkUpdate(false);  // 静默检查更新
 });
+
+/* ===== 检查更新（GitHub Release） ===== */
+let updateInfo = null;
+async function checkUpdate(manual) {
+  const box = document.getElementById('updateBox');
+  try {
+    const r = await api('check_update');
+    if (r.error) {
+      if (manual) toast('检查更新失败: ' + r.error);
+      return;
+    }
+    if (!r.has_update) {
+      if (manual) toast('当前已是最新版本 v' + r.current);
+      return;
+    }
+    updateInfo = r;
+    // 显示更新提示
+    box.style.display = 'block';
+    document.getElementById('updateInfo').innerHTML =
+      `发现新版本 <b>v${r.latest}</b>（当前 v${r.current}，${(r.size / 1048576).toFixed(1)} MB）`;
+    document.getElementById('updateNotes').textContent = r.notes || '(无更新说明)';
+    if (manual) toast('发现新版本 v' + r.latest);
+  } catch (e) {
+    if (manual) toast('检查更新失败: ' + e);
+  }
+}
+async function downloadUpdate() {
+  if (!updateInfo) return;
+  const btn = document.getElementById('btnUpdateDownload');
+  btn.disabled = true;
+  btn.textContent = '启动下载…';
+  try {
+    const r = await api('download_update', updateInfo.url);
+    if (!r.ok) { toast(r.msg); btn.disabled = false; btn.textContent = '⬇ 下载更新'; return; }
+    // 轮询下载进度
+    const timer = setInterval(async () => {
+      try {
+        const p = await api('download_progress');
+        if (p.error) {
+          clearInterval(timer);
+          toast('下载失败: ' + p.error);
+          btn.disabled = false; btn.textContent = '⬇ 下载更新';
+          return;
+        }
+        if (p.downloading) {
+          const pct = p.total ? Math.round(p.done / p.total * 100) : 0;
+          const mb = (p.done / 1048576).toFixed(1);
+          btn.textContent = `下载中 ${pct}% (${mb}MB)`;
+          return;
+        }
+        clearInterval(timer);
+        btn.disabled = false;
+        btn.textContent = '✓ 已下载';
+        btn.className = 'btn sm success';
+        updateInfo.path = p.path;
+        document.getElementById('btnUpdateApply').style.display = 'inline-block';
+        toast('下载完成，可应用更新');
+      } catch (e) { clearInterval(timer); }
+    }, 500);
+  } catch (e) {
+    toast('下载失败: ' + e);
+    btn.disabled = false;
+    btn.textContent = '⬇ 下载更新';
+  }
+}
+async function applyUpdateUI() {
+  if (!updateInfo || !updateInfo.path) return;
+  if (!confirm('应用更新将关闭程序并替换为新版本，确定继续?')) return;
+  toast('正在应用更新，程序即将退出…');
+  try {
+    await api('apply_update', updateInfo.path);
+  } catch (e) {
+    // 程序退出导致调用失败是预期行为
+  }
+}
+function hideUpdateBox() {
+  document.getElementById('updateBox').style.display = 'none';
+}
 </script>
 </body>
 </html>

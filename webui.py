@@ -7,7 +7,7 @@ import queue
 import sys
 import threading
 
-from app_config import ConfigManager, app_dir, set_windows_autostart
+from app_config import APP_VERSION, ConfigManager, app_dir, set_windows_autostart
 from mcp_service import McpService
 from providers import PROVIDERS, ApiError, SearchRouter
 
@@ -53,6 +53,8 @@ class JsApi:
 
     def __init__(self, app: "WebApp"):
         self._app = app
+        self._dl_thread = None
+        self._dl_progress = None
 
     def get_config(self):
         return self._app.cm.config
@@ -62,6 +64,9 @@ class JsApi:
             old_autostart = self._app.cm.config.get("autostart", False)
             if cfg.get("autostart") != old_autostart:
                 set_windows_autostart(bool(cfg.get("autostart")))
+            # 配置未变化时跳过落盘和服务重启（加载配置回写等场景）
+            if cfg == self._app.cm.config:
+                return {"ok": True, "msg": "配置无变化"}
             self._app.cm.save(cfg)
             level = getattr(logging, cfg.get("log_level", "INFO"), logging.INFO)
             logging.getLogger().setLevel(level)
@@ -73,7 +78,8 @@ class JsApi:
             return {"ok": False, "msg": f"保存失败: {e}"}
 
     def get_status(self):
-        return {"running": self._app.service.is_running, "endpoint": self._app.service.endpoint()}
+        return {"running": self._app.service.is_running, "endpoint": self._app.service.endpoint(),
+                "version": APP_VERSION}
 
     def start_service(self):
         ok, msg = self._app.service.start()
@@ -149,6 +155,51 @@ class JsApi:
         self._app.service.stats.reset()
         return {"ok": True}
 
+    def check_update(self):
+        """检查 GitHub 最新 release。"""
+        import updater
+        try:
+            return updater.run_check_and_download(self._app.cm.config.get("proxy", {}))
+        except Exception as e:
+            return {"has_update": False, "error": str(e)}
+
+    def download_update(self, url):
+        """后台线程下载新版 exe，立即返回。进度用 download_progress 轮询。"""
+        import threading
+        import updater
+        if self._dl_thread and self._dl_thread.is_alive():
+            return {"ok": False, "msg": "已有下载任务在进行中"}
+        self._dl_progress = {"downloading": True, "done": 0, "total": 0, "path": None, "error": None}
+
+        def worker():
+            try:
+                path = updater.download_update_sync(url, self._app.cm.config.get("proxy", {}),
+                                                    lambda d, t: self._dl_progress.update(done=d, total=t))
+                self._dl_progress.update(path=path, downloading=False)
+            except Exception as e:
+                self._dl_progress.update(error=str(e), downloading=False)
+
+        self._dl_thread = threading.Thread(target=worker, daemon=True)
+        self._dl_thread.start()
+        return {"ok": True, "msg": "下载已开始"}
+
+    def download_progress(self):
+        """轮询下载进度。"""
+        return self._dl_progress or {"downloading": False}
+
+    def apply_update(self, path):
+        """应用已下载的更新（替换 exe 并重启）。"""
+        import updater
+        result = updater.run_apply(path)
+        if result.get("ok"):
+            # 启动替换脚本后退出本进程，否则运行中的 exe 无法被覆盖
+            import threading
+            threading.Timer(1.0, self._app.quit).start()
+        return result
+
+    def get_app_version(self):
+        return {"version": APP_VERSION}
+
     def get_logs(self):
         lines = []
         try:
@@ -183,11 +234,13 @@ class WebApp:
         root_logger.setLevel(getattr(logging, self.cm.config.get("log_level", "INFO"), logging.INFO))
 
         self.service = McpService(self.cm, on_state_change=self._on_service_state)
+        self.service_running = False
         self.tray_icon = None
         self.window = None
         self._quitting = False
 
     def _on_service_state(self, running: bool, msg: str = ""):
+        self.service_running = running
         if self.window:
             try:
                 self.window.evaluate_js(f"window.onServiceState && window.onServiceState({json.dumps(running)})")
@@ -249,7 +302,7 @@ class WebApp:
         if not os.path.exists(html_path):
             html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "index.html")
         self.window = webview.create_window(
-            "MergeSearch v0.1.0",
+            f"MergeSearch v{APP_VERSION}",
             html_path,
             js_api=JsApi(self),
             width=1100, height=720, min_size=(900, 600),

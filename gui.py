@@ -19,7 +19,7 @@ def _make_ds_client(cfg, keys=None):
     plat = dict(cfg.get("platforms", {}).get("deepseek", {}))
     if keys is not None:
         plat["keys"] = keys
-    request_cfg = {**cfg.get("request", {}), "key_strategy": cfg.get("key_strategy", "round_robin")}
+    request_cfg = {**cfg.get("request", {}), "key_strategy": plat.get("key_strategy", "round_robin")}
     return DeepSeekProvider(plat, request_cfg, ProxyRouter(cfg.get("proxy", {})))
 from mcp_service import McpService
 
@@ -346,7 +346,8 @@ class SettingsDialog(ttk.Toplevel):
         row = ttk.Frame(tab)
         row.pack(fill="x", pady=4)
         ttk.Label(row, text="Key 切换策略:").pack(side="left")
-        self.strategy_var = tk.StringVar(value=self.STRATEGIES.get(self.cfg.get("key_strategy"), "轮询"))
+        self.strategy_var = tk.StringVar(value=self.STRATEGIES.get(
+            self.cfg.get("platforms", {}).get("deepseek", {}).get("key_strategy", "round_robin"), "轮询"))
         ttk.Combobox(row, textvariable=self.strategy_var, state="readonly", width=18,
                      values=list(self.STRATEGIES.values())).pack(side="left", padx=5)
 
@@ -561,7 +562,7 @@ class SettingsDialog(ttk.Toplevel):
         ds = cfg.setdefault("platforms", {}).setdefault("deepseek", {})
         ds["keys"] = list(self._real_keys)
         strategy = {v: k for k, v in self.STRATEGIES.items()}.get(self.strategy_var.get(), "round_robin")
-        cfg["key_strategy"] = strategy
+        ds["key_strategy"] = strategy
         ds["base_url"] = self.base_url_var.get().strip() or "https://api.deepseek.com"
 
         mode = {v: k for k, v in self.PROXY_MODES.items()}.get(self.proxy_mode_var.get(), "auto")
